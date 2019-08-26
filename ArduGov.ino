@@ -1,30 +1,34 @@
 /*
- * ArduGov - A standalone Arduino based engine governor.
+ * ArduGov - A standalone Arduino Uno based engine governor.
  * 
  * Pins assignments:
  * 7 - Governor on/off switch.
  * 8 - Tach pulse input
  * 9 - Servo output
+ * 
+ * Onboard LED indicates active PID control.
+ * 
  */
-  
+
 // Target RPM value
 #define RPM_SETPOINT 3600
+#define BANGBANG_LIMIT 0 
 
 // Degrees of rotation per tach pulse
 #define DEGREES_PER_PULSE 20
 
-// Activation pin
-#define ACTIVATE_PIN 7
-
-// Servo pin and limits in uS
-#define SERVO_PIN 9
-#define SERVO_MIN 900
-#define SERVO_MAX 2100
+// Servo limits in uS
+#define SERVO_MIN 1135
+#define SERVO_MAX 1735
 
 // PID settings
-#define KP .12
-#define KI .0003
-#define KD 0
+#define KP 0.50
+#define KI 0.01
+#define KD 0.02
+
+// Tach pin assignment is static due to FreqMeasure limitations
+#define ACTIVATE_PIN 7
+#define SERVO_PIN 9
 
 #include <FreqMeasure.h>
 #include <AutoPID.h>
@@ -46,23 +50,26 @@ void setup() {
   FreqMeasure.begin();
   servo.attach(SERVO_PIN);
   
-  servoPID.setBangBang(200); // BangBang <> 200rpm from setpoint
-  servoPID.setTimeStep(50); // Calculate every 50ms
+  //servoPID.setBangBang(BANGBANG_LIMIT);
+  servoPID.setTimeStep(200);
 }
 
 void loop() {
   if (FreqMeasure.available()) {
-    float frequency = FreqMeasure.countToFrequency(FreqMeasure.read());
+    double count = FreqMeasure.read();
+    float frequency = FreqMeasure.countToFrequency(count);
     currentRPM = frequency * DEGREES_PER_PULSE / 360 * 60;
-    Serial.println(frequency);
-    digitalWrite(LED_BUILTIN, servoPID.atSetPoint(25));
+    Serial.println(currentRPM);
+    digitalWrite(LED_BUILTIN, servoPID.atSetPoint(BANGBANG_LIMIT));
   }
 
   if (digitalRead(ACTIVATE_PIN) == LOW) {
     servoPID.run();
     servo.write(servoValue);
+    //digitalWrite(LED_BUILTIN, HIGH);
   } else {
     servoPID.stop();
     servo.write(SERVO_MIN);
+    //digitalWrite(LED_BUILTIN, LOW);
   }
 }
